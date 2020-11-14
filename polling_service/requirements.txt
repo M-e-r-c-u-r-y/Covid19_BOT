@@ -1,0 +1,4 @@
+asyncpg==0.21.0
+tortoise_orm==0.16.16
+celery[librabbitmq,redis,auth,msgpack]
+requests==2.25.0

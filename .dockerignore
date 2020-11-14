@@ -1,0 +1,8 @@
+**/node_modules
+**/build
+**/__pycache__
+**/.git
+.gitignore
+**/Dockerfile
+**/.dockerignore
+.editorconfig

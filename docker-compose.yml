@@ -1,0 +1,124 @@
+version: "3.8"
+services:
+  db:
+    container_name: db
+    image: "postgres:alpine"
+    environment:
+      - POSTGRES_DB=${DOCKER_POSTGRES_DB}
+      - POSTGRES_USER=${DOCKER_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${DOCKER_POSTGRES_PASSWORD}
+      - PGDATA=${DOCKER_PGDATA}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 200M
+        reservations:
+          memory: 100M
+    networks:
+      - webappnetwork
+    volumes:
+      - covid19dbvolume:/var/lib/postgresql/data # using named volume to persist data; run `docker volume create covid19dbvolume` before `docker-compose up`
+    command: ["postgres", "-c", "log_statement=all"] # To see all the commands running on our db live
+    ports:
+      - "5432:5432"
+  redis:
+    container_name: redis
+    image: "redis:alpine"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 200M
+        reservations:
+          memory: 100M
+    networks:
+      - webappnetwork
+  backend:
+    container_name: backend
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 500M
+        reservations:
+          memory: 100M
+    build:
+      context: .
+      target: backend-base
+    command: uvicorn app.main:app --reload --workers 1 --host 0.0.0.0 --port 8000
+    environment:
+      - TORTOISEORM_DSN=${DOCKER_DSN}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend_service/app:/usr/src/app/app
+    networks:
+      - webappnetwork
+    depends_on:
+      - db
+  celery:
+    container_name: celery
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 500M
+        reservations:
+          memory: 100M
+    build:
+      context: .
+      target: polling-base
+    command: celery -A api_poller worker -l info
+    volumes:
+      - ./polling_service/api_poller/:/usr/src/app/api_poller/
+    environment:
+      - TORTOISEORM_DSN=${DOCKER_DSN}
+      - POLLING_MINUTES=${DOCKER_POLLING_MINUTES}
+    networks:
+      - webappnetwork
+    depends_on:
+      - redis
+  celery-beat:
+    container_name: celery-beat
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 500M
+        reservations:
+          memory: 100M
+    build:
+      context: .
+      target: polling-base
+    command: celery -A api_poller beat -l info
+    volumes:
+      - ./polling_service/api_poller/:/usr/src/app/api_poller/
+    environment:
+      - TORTOISEORM_DSN=${DOCKER_DSN}
+      - POLLING_MINUTES=${DOCKER_POLLING_MINUTES}
+    networks:
+      - webappnetwork
+    depends_on:
+      - redis
+  ngrok:
+    image: wernight/ngrok:latest
+    ports:
+      - 4040:4040
+    environment:
+      NGROK_PROTOCOL: http
+      NGROK_PORT: backend:8000
+    networks:
+      - webappnetwork
+    depends_on:
+      - backend
+      - db
+networks:
+  webappnetwork:
+    driver: bridge
+volumes:
+  covid19dbvolume:
+    external: true

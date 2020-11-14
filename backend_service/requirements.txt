@@ -1,0 +1,7 @@
+asyncpg==0.21.0
+rejson==0.5.4
+tortoise_orm==0.16.16
+fastapi==0.61.1
+uvicorn==0.12.2
+twilio==6.47.0
+python-multipart==0.0.5
