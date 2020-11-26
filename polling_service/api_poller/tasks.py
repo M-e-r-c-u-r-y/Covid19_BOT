@@ -9,6 +9,10 @@ from datetime import datetime
 
 import os
 
+DEFAULT = "Not Set"
+DSN = os.environ.get("TORTOISEORM_DSN", DEFAULT)
+POLLED_URL = os.environ.get("POLLED_URL", DEFAULT)
+
 logger = get_task_logger(__name__)
 
 
@@ -46,23 +50,32 @@ class Covid19Cases(Model):
     #     computed = ("TotalActive")
 
 
-async def run(normalized_result=None):
-    DEFAULT = "Not Set"
-    DSN = os.environ.get("TORTOISEORM_DSN", DEFAULT)
-    print("DSN is", DSN)
+async def save_to_db(normalized_result=None, last_fetch_date=None):
     await Tortoise.init(db_url=DSN, modules={"models": ["api_poller.tasks"]})
     # Ideally should only run once so that the schema gets generated
     await Tortoise.generate_schemas()
-    await Covid19Cases.bulk_create(normalized_result)
-    logger.info("Saving to DB Successful")
+    logger.info(f"Checking if {last_fetch_date} already in db")
+    already_in_db = bool(
+        await Covid19Cases.filter(
+            CountryCode="GLB", FetchedDate=last_fetch_date
+        ).count()
+    )
+    if not already_in_db:
+        logger.info("Saving to DB ...")
+        await Covid19Cases.bulk_create(normalized_result)
+        logger.info("Saving to DB Successful")
+    else:
+        logger.info(
+            f"Entries for {last_fetch_date} already present in db, skipping saving"
+        )
 
 
 @app.task
-def test():
-    r = requests.get("https://api.covid19api.com/summary")
+def poller():
+    r = requests.get(POLLED_URL)
     if r.status_code == requests.codes.ok:
         data = r.json()
-        logger.info("Fetch from external API Successful")
+        logger.info("Fetch from external API successful")
         normalized_data = []
         normalized_data.append(data["Global"])
         normalized_data[0]["Country"] = "Global"
@@ -93,4 +106,6 @@ def test():
             normalized_data.append(new_item)
 
         normalized_result = map(lambda item: Covid19Cases(**item), normalized_data)
-        run_async(run(normalized_result))
+        run_async(save_to_db(normalized_result, normalized_data[0]["FetchedDate"]))
+    else:
+        logger.info("Fetch from external API failed")

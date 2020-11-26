@@ -77,6 +77,7 @@ services:
     environment:
       - TORTOISEORM_DSN=${DOCKER_DSN}
       - POLLING_MINUTES=${DOCKER_POLLING_MINUTES}
+      - POLLED_URL=${DOCKER_POLLED_URL}
     networks:
       - webappnetwork
     depends_on:
@@ -100,11 +101,13 @@ services:
     environment:
       - TORTOISEORM_DSN=${DOCKER_DSN}
       - POLLING_MINUTES=${DOCKER_POLLING_MINUTES}
+      - POLLED_URL=${DOCKER_POLLED_URL}
     networks:
       - webappnetwork
     depends_on:
       - redis
   ngrok:
+    container_name: ngrok
     image: wernight/ngrok:latest
     ports:
       - 4040:4040

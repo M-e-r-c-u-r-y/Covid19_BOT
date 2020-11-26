@@ -11,7 +11,7 @@ app.config_from_object("api_poller.celeryconfig")
 
 app.conf.beat_schedule = {
     "poll-external-api-every-minute": {
-        "task": "api_poller.tasks.test",
+        "task": "api_poller.tasks.poller",
         "schedule": crontab(minute=f"*/{POLLING_MINUTES}"),
     }
 }
